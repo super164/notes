@@ -1,0 +1,570 @@
+整体原则
+
+- 我给你按 接口职责 + 请求参数 + 返回结构 + 建议放置位置 整理一版
+- 你后面开发时就按这个顺序，一个模块一个模块落地
+- 建议统一返回格式继续沿用你现在的：
+```
+{
+  "code": 0,
+  "data": {},
+  "msg": "success"
+}
+```
+目录建议
+
+- controller ：只处理参数绑定、鉴权上下文、返回响应
+- service ：处理业务逻辑
+- dao ：处理数据库操作
+- dto/request ：请求参数
+- dto/response ：响应结构
+- model ：数据库模型
+- router ：路由分组与中间件挂载
+第一组：认证与当前用户
+
+- POST /api/login
+  - 作用：登录，返回 token 和用户信息
+  - 是否鉴权：否
+  - 请求参数：
+```
+{
+  "username": "admin",
+  "password": "123456"
+}
+```
+- 返回数据建议：
+```
+{
+  "token": "jwt-token",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@test.com",
+    "role": "admin",
+    "avatar": "",
+    "createdAt": "2026-05-01 10:00:00"
+  }
+}
+```
+- 放置位置：
+  
+  - controller/user_controller.go ： Login
+  - service/user_service.go ： Login
+  - dao/user_dao.go ： GetUserByUsername
+- GET /api/profile
+  
+  - 作用：获取当前登录用户信息
+  - 是否鉴权：是， JWTAuth()
+  - 请求参数：无，从 token 里取 user_id
+  - 返回数据建议：
+```
+{
+  "id": 1,
+  "username": "admin",
+  "role": "admin"
+}
+```
+- 放置位置：
+  
+  - controller/user_controller.go ： GetProfile
+  - service/user_service.go ： GetProfile
+  - dao/user_dao.go ： GetUserByID
+- PUT /api/profile
+  
+  - 作用：修改当前用户资料
+  - 是否鉴权：是
+  - 请求参数建议：
+```
+{
+  "email": "new@test.com",
+  "avatar": "/uploads/avatar/a.png"
+}
+```
+- 返回：更新后的用户信息
+- 放置位置：
+  
+  - controller/user_controller.go
+  - service/user_service.go
+  - dao/user_dao.go
+- PUT /api/profile/password
+  
+  - 作用：修改密码
+  - 是否鉴权：是
+  - 请求参数建议：
+```
+{
+  "old_password": "123456",
+  "new_password": "654321"
+}
+```
+- 返回：成功提示
+- 放置位置：
+  - controller/user_controller.go
+  - service/user_service.go
+  - dao/user_dao.go
+  第二组：前台文章公开接口
+
+- GET /api/articles
+  - 作用：前台文章列表
+  - 是否鉴权：否
+  - 查询参数建议：
+    - page
+    - page_size
+    - category_id
+    - tag_id
+    - keyword
+  - 示例：
+```
+GET /api/articles?page=1&page_size=10&
+category_id=2
+```
+- 返回数据建议：
+```
+{
+  "list": [
+    {
+      "id": 1,
+      "title": "Go JWT 实战",
+      "slug": "go-jwt",
+      "cover": "/uploads/article/cover1.png",
+      "status": "published",
+      "views_count": 10,
+      "likes_count": 3,
+      "favorites_count": 1,
+      "created_at": "2026-05-01T10:00:00Z",
+      "author": { "id": 1, "username": "admin" },
+      "category": { "id": 2, "name": "Go" },
+      "tags": [{ "id": 1, "name": "JWT" }]
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "page_size": 10
+}
+```
+- 放置位置：
+  
+  - controller/article_controller.go ： GetArticleList
+  - service/article_service.go ： GetArticleList
+  - dao/article_dao.go ： ListArticles
+- GET /api/articles/:id
+  
+  - 作用：前台文章详情
+  - 是否鉴权：否
+  - 路径参数： id
+  - 返回：单篇文章详情
+  - 同时建议在 service 里顺手做浏览量 +1
+  - 放置位置：
+    - controller/article_controller.go ： GetArticleDetail
+    - service/article_service.go ： GetArticleDetail
+    - dao/article_dao.go ： GetArticleByID
+    第三组：后台文章管理接口
+
+- POST /api/admin/articles
+  - 作用：新增文章
+  - 是否鉴权：是，且建议管理员权限
+  - 请求参数建议：
+```
+{
+  "title": "Go JWT 实战",
+  "content": "文章内容",
+  "cover": "/uploads/article/cover1.png",
+  "category_id": 2,
+  "tag_ids": [1, 3],
+  "status": "published",
+  "slug": "go-jwt"
+}
+```
+- 返回：新建文章详情
+- 放置位置：
+  
+  - controller/article_controller.go ： CreateArticle
+  - service/article_service.go ： CreateArticle
+  - dao/article_dao.go ： CreateArticle
+- GET /api/admin/articles
+  
+  - 作用：后台文章列表
+  - 是否鉴权：是，管理员
+  - 查询参数建议：
+    - page
+    - page_size
+    - status
+    - category_id
+    - keyword
+  - 和前台列表区别：
+    - 后台可以看到 draft/private/audit
+    - 后台支持更多筛选
+  - 放置位置：
+    - controller/article_controller.go
+    - service/article_service.go
+    - dao/article_dao.go
+- GET /api/admin/articles/:id
+  
+  - 作用：后台文章详情
+  - 是否鉴权：是，管理员
+  - 用途：编辑前回显
+  - 放置位置：
+    - controller/article_controller.go
+    - service/article_service.go
+    - dao/article_dao.go
+- PUT /api/admin/articles/:id
+  
+  - 作用：更新文章
+  - 是否鉴权：是，管理员
+  - 请求参数和创建类似，但字段可选
+  - 注意点：
+    - 标题校验
+    - slug 唯一
+    - 分类是否存在
+    - tag_ids 是否有效
+  - 放置位置：
+    - controller/article_controller.go
+    - service/article_service.go
+    - dao/article_dao.go
+- DELETE /api/admin/articles/:id
+  
+  - 作用：删除文章
+  - 是否鉴权：是，管理员
+  - 返回：成功提示
+  - 建议优先逻辑删除或明确物理删除策略
+  - 放置位置：
+    - controller/article_controller.go
+    - service/article_service.go
+    - dao/article_dao.go
+    第四组：分类管理
+
+- GET /api/categories
+  - 作用：前台分类列表
+  - 是否鉴权：否
+  - 返回建议：
+```
+[
+  { "id": 1, "name": "后端", "slug": "backend", 
+  "description": "", "parent_id": 0 }
+]
+```
+- 放置位置：
+  
+  - controller/category_controller.go
+  - service/category_service.go
+  - dao/category_dao.go
+- POST /api/admin/categories
+  
+  - 作用：新增分类
+  - 是否鉴权：是，管理员
+  - 请求参数：
+```
+{
+  "name": "后端",
+  "slug": "backend",
+  "description": "后端相关文章",
+  "parent_id": 0
+}
+```
+- 返回：分类详情
+- 放置位置：
+  
+  - controller/category_controller.go
+  - service/category_service.go
+  - dao/category_dao.go
+- GET /api/admin/categories
+  
+  - 作用：后台分类列表
+  - 是否鉴权：是，管理员
+  - 返回：平铺列表或树形列表都可以
+  - 放置位置：
+    - controller/category_controller.go
+    - service/category_service.go
+    - dao/category_dao.go
+- PUT /api/admin/categories/:id
+  
+  - 作用：更新分类
+  - 是否鉴权：是，管理员
+  - 请求参数：同创建，可选字段
+  - 放置位置：
+    - controller/category_controller.go
+    - service/category_service.go
+    - dao/category_dao.go
+- DELETE /api/admin/categories/:id
+  
+  - 作用：删除分类
+  - 是否鉴权：是，管理员
+  - 注意：
+    - 删除前检查是否有关联文章
+    - 有子分类时是否允许删
+  - 放置位置：
+    - controller/category_controller.go
+    - service/category_service.go
+    - dao/category_dao.go
+    第五组：标签管理
+
+- GET /api/tags
+  
+  - 作用：前台标签列表
+  - 是否鉴权：否
+- POST /api/admin/tags
+  
+  - 作用：新增标签
+  - 是否鉴权：是，管理员
+  - 请求参数：
+```
+{
+  "name": "JWT",
+  "slug": "jwt"
+}
+```
+- GET /api/admin/tags
+  
+  - 作用：后台标签列表
+  - 是否鉴权：是，管理员
+- PUT /api/admin/tags/:id
+  
+  - 作用：更新标签
+  - 是否鉴权：是，管理员
+- DELETE /api/admin/tags/:id
+  
+  - 作用：删除标签
+  - 是否鉴权：是，管理员
+- 放置位置：
+  
+  - controller/tag_controller.go
+  - service/tag_service.go
+  - dao/tag_dao.go
+  第六组：评论系统
+
+- GET /api/articles/:id/comments
+  - 作用：获取文章评论列表
+  - 是否鉴权：否
+  - 路径参数：文章 id
+  - 返回建议：
+```
+[
+  {
+    "id": 1,
+    "content": "写得很好",
+    "article_id": 1,
+    "parent_id": 0,
+    "created_at": "2026-05-01T10:00:00Z",
+    "user": {
+      "id": 2,
+      "username": "tom"
+    },
+    "children": []
+  }
+]
+```
+- 只返回已审核通过的评论
+- 放置位置：
+  
+  - controller/comment_controller.go
+  - service/comment_service.go
+  - dao/comment_dao.go
+- POST /api/comments
+  
+  - 作用：发表评论
+  - 是否鉴权：建议是
+  - 请求参数：
+```
+{
+  "article_id": 1,
+  "content": "写得很好",
+  "parent_id": 0
+}
+```
+- 返回：评论详情
+- 建议新评论默认状态为 pending
+- 放置位置：
+  
+  - controller/comment_controller.go
+  - service/comment_service.go
+  - dao/comment_dao.go
+- POST /api/comments/:id/reply
+  
+  - 作用：回复某条评论
+  - 是否鉴权：是
+  - 请求参数：
+```
+{
+  "content": "谢谢支持"
+}
+```
+- 放置位置：
+  
+  - controller/comment_controller.go
+  - service/comment_service.go
+  - dao/comment_dao.go
+- GET /api/admin/comments
+  
+  - 作用：后台评论列表
+  - 是否鉴权：是，管理员
+  - 查询参数建议：
+    - page
+    - page_size
+    - status
+    - article_id
+  - 放置位置：
+    - controller/comment_controller.go
+    - service/comment_service.go
+    - dao/comment_dao.go
+- PUT /api/admin/comments/:id/status
+  
+  - 作用：审核评论
+  - 是否鉴权：是，管理员
+  - 请求参数：
+```
+{
+  "status": "approved"
+}
+```
+- 状态建议统一：
+  
+  - pending
+  - approved
+  - rejected
+  - deleted
+- 放置位置：
+  
+  - controller/comment_controller.go
+  - service/comment_service.go
+  - dao/comment_dao.go
+- DELETE /api/admin/comments/:id
+  
+  - 作用：删除评论
+  - 是否鉴权：是，管理员
+  - 放置位置：
+    - controller/comment_controller.go
+    - service/comment_service.go
+    - dao/comment_dao.go
+    第七组：点赞与收藏
+
+- POST /api/articles/:id/like
+  
+  - 作用：点赞文章
+  - 是否鉴权：是
+  - 返回：成功提示或最新点赞数
+  - 放置位置：
+    - controller/like_controller.go
+    - service/like_service.go
+    - dao/like_dao.go
+- DELETE /api/articles/:id/like
+  
+  - 作用：取消点赞
+  - 是否鉴权：是
+- POST /api/articles/:id/favorite
+  
+  - 作用：收藏文章
+  - 是否鉴权：是
+- DELETE /api/articles/:id/favorite
+  
+  - 作用：取消收藏
+  - 是否鉴权：是
+- GET /api/my/favorites
+  
+  - 作用：查看我的收藏列表
+  - 是否鉴权：是
+  第八组：文件上传
+
+- POST /api/admin/upload
+  - 作用：上传文章封面图或正文图片
+  - 是否鉴权：是，管理员
+  - 请求方式： multipart/form-data
+  - 表单字段建议：
+    - file
+    - type ，比如 cover 或 content
+  - 返回建议：
+```
+{
+  "url": "/uploads/articles/20260501_xxx.png",
+  "filename": "20260501_xxx.png"
+}
+```
+- 放置位置：
+  - controller/upload_controller.go
+  - service/upload_service.go
+  - 文件保存逻辑可放 utils/upload.go
+- 注意点：
+  - 文件类型限制
+  - 文件大小限制
+  - 重名处理
+  - 静态资源访问路径
+  第九组：后台首页
+
+- GET /api/admin/dashboard
+  - 作用：后台统计数据
+  - 是否鉴权：是，管理员
+  - 返回建议：
+```
+{
+  "article_count": 20,
+  "comment_count": 50,
+  "pending_comment_count": 8,
+  "category_count": 6
+}
+```
+- 放置位置：
+  - controller/dashboard_controller.go
+  - service/dashboard_service.go
+  - dao/dashboard_dao.go
+  建议的路由文件结构
+
+- 你后面可以按这个思路组织 router.go
+```
+/api
+  public
+  user
+  admin
+```
+- public ：不挂 JWT
+- user ：挂 JWTAuth()
+- admin ：挂 JWTAuth() ，再加 AdminOnly()
+逻辑上建议是：
+
+```
+api := r.Group("/api")
+
+public := api.Group("/")
+user := api.Group("/")
+admin := api.Group("/admin")
+```
+推荐的开发顺序
+
+- 第一步： login + profile
+- 第二步： admin categories
+- 第三步： admin articles + public articles
+- 第四步： comments
+- 第五步： upload
+- 第六步： likes/favorites + dashboard
+最小可交付闭环
+
+- 管理员登录
+- 获取当前用户信息
+- 创建分类
+- 创建文章
+- 查看文章列表
+- 查看文章详情
+- 登录后发表评论
+- 后台审核评论
+- 上传文章封面
+你现在最应该先补哪些文件
+
+- controller/category_controller.go
+- service/category_service.go
+- dao/category_dao.go
+- controller/article_controller.go
+- service/article_service.go
+- dao/article_dao.go
+- controller/comment_controller.go
+- service/comment_service.go
+- dao/comment_dao.go
+- controller/upload_controller.go
+- service/upload_service.go
+额外提醒
+
+- 你现在 DTO 和 model 里有几处字段类型还不统一，正式开始做这些接口前建议先统一：
+- Article.Status
+- Category.ParentID
+- Comment.ParentID
+- Comment.Static 建议改成 Status
+一句话总结
+
+- 这份更细的版本，你可以直接当成后端接口开发清单来用
+- 最好的推进方式是：先把 认证 -> 分类 -> 文章 -> 评论 -> 上传 一条主链路做通
